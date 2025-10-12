@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 from tqdm import tqdm
-from src.data.pubtabnet_dataloader import PubTabNetLoader 
+from src.data_utils.pubtabnet_dataloader import PubTabNetLoader 
 from src.models.load_model import create_model
 
 
@@ -13,7 +13,7 @@ def parse_args():
         description="Run VLM inference on PubTabNet dataset"
     )
     parser.add_argument(
-        "--model",
+        "--model_name",
         type=str,
         required=True,
         help="Model name to use for inference (e.g., 'florence-2', 'qwen-vl')"
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     args = parse_args()
     
     run_inference(
-        model_name=args.model,
+        model_name=args.model_name,
         data_dir=args.data_dir,
         prompt=args.prompt,
         save_path=args.save_path,
@@ -177,3 +177,4 @@ if __name__ == "__main__":
         max_images=args.max_images,
         max_size=args.max_size
     )
+
