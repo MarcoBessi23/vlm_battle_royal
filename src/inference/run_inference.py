@@ -33,7 +33,7 @@ def parse_args():
     parser.add_argument(
         "--save_path",
         type=str,
-        default="experiments/results/inference.json",
+        default="experiments/results/inference.jsonl",
         help="Path to save inference results"
     )
     parser.add_argument(
@@ -70,6 +70,9 @@ def run_inference(model_name, data_dir, prompt, save_path, batch_size=1,
         max_images: Optional limit on number of images
         max_size: Maximum image dimension for resizing
     """
+    save_path = Path(save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    save_path.write_text("")
     # Initialize model
     print(f"Loading model: {model_name}")
     model = create_model(model_name)
@@ -87,10 +90,7 @@ def run_inference(model_name, data_dir, prompt, save_path, batch_size=1,
         print(f"Limited to {len(dataset)} images for testing")
     
     print(f"Processing {len(dataset)} images with prompt: '{prompt}'")
-    
-    # Run inference
-    results = []
-    
+        
     if batch_size == 1:
         # Single image processing (more compatible with most VLMs)
         for item in tqdm(dataset, desc=f"Running {model_name}"):
@@ -98,24 +98,29 @@ def run_inference(model_name, data_dir, prompt, save_path, batch_size=1,
                 image = item["image"]
                 output = model.generate(image, prompt)
                 
-                results.append({
+                result = {
                     "image_path": item["image_path"],
                     "filename": item["filename"],
                     "output": output,
                     "prompt": prompt
-                })
+                }
+                with open(save_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(result) + '\n')
             except Exception as e:
                 print(f"\nError processing {item['filename']}: {e}")
-                results.append({
+                result = {
                     "image_path": item["image_path"],
                     "filename": item["filename"],
                     "output": None,
                     "error": str(e)
-                })
+                }
+                with open(save_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(result) + '\n')
+    
     else:
         # Batch processing (if model supports it)
         print(f"Using batch size: {batch_size}")
-        for i in tqdm(range(0, len(dataset), batch_size), desc=f"Running {model_name}"):
+        for i in tqdm(range(0, len(dataset[:100]), batch_size), desc=f"Running {model_name}"):
             batch = dataset[i:i + batch_size]
             
             try:
@@ -126,44 +131,33 @@ def run_inference(model_name, data_dir, prompt, save_path, batch_size=1,
                 
                 # Generate outputs for batch
                 outputs = model.generate_batch(images, prompt)
+                assistant_token = "<|assistant|>"
                 
                 # Store results
                 for path, filename, output in zip(paths, filenames, outputs):
-                    results.append({
+                    if assistant_token in output:
+                        output = output.split(assistant_token, 1)[1].strip()
+                    result = {
                         "image_path": path,
                         "filename": filename,
                         "output": output,
                         "prompt": prompt
-                    })
+                    }
+                    with open(save_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(result) + '\n')        
             except Exception as e:
                 print(f"\nError processing batch {i//batch_size}: {e}")
                 # Add error entries for batch
                 for path, filename in zip(paths, filenames):
-                    results.append({
+                    result = {
                         "image_path": path,
                         "filename": filename,
                         "output": None,
                         "error": str(e)
-                    })
-    
-    # Save results
-    save_path = Path(save_path)
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(save_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-    
-    # Print summary
-    successful = sum(1 for r in results if "error" not in r)
-    failed = len(results) - successful
-    
-    print(f"\n{'='*60}")
-    print(f" Successfully processed: {successful}/{len(results)} images")
-    if failed > 0:
-        print(f"Failed: {failed} images")
-    print(f" Results saved to: {save_path}")
-    print(f"{'='*60}")
-
+                    }
+                    with open(save_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(result) + '\n')
+            
 
 if __name__ == "__main__":
     args = parse_args()
@@ -177,4 +171,5 @@ if __name__ == "__main__":
         max_images=args.max_images,
         max_size=args.max_size
     )
+
 
