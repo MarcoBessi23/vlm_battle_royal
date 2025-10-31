@@ -94,74 +94,47 @@ def run_inference(model_name, data_dir, prompt, save_path, batch_size=1,
     if batch_size == 1:
         # Single image processing (more compatible with most VLMs)
         for item in tqdm(dataset, desc=f"Running {model_name}"):
-            try:
-                image = item["image"]
-                output = model.generate(image, prompt)
-                
-                result = {
-                    "image_path": item["image_path"],
-                    "filename": item["filename"],
-                    "output": output,
-                    "prompt": prompt
-                }
-                with open(save_path, "a", encoding="utf-8") as f:
-                        f.write(json.dumps(result) + '\n')
-            except Exception as e:
-                print(f"\nError processing {item['filename']}: {e}")
-                result = {
-                    "image_path": item["image_path"],
-                    "filename": item["filename"],
-                    "output": None,
-                    "error": str(e)
-                }
-                with open(save_path, "a", encoding="utf-8") as f:
-                        f.write(json.dumps(result) + '\n')
-    
+            image = item["image"]
+            output = model.generate(image, prompt)
+            
+            result = {
+                "image_path": item["image_path"],
+                "filename": item["filename"],
+                "output": output,
+                "prompt": prompt
+            }
+            with open(save_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(result) + '\n') 
     else:
         # Batch processing (if model supports it)
         print(f"Using batch size: {batch_size}")
         for i in tqdm(range(0, len(dataset[:100]), batch_size), desc=f"Running {model_name}"):
             batch = dataset[i:i + batch_size]
             
-            try:
-                # Handle both single item and batch
-                images = batch["image"] if isinstance(batch["image"], list) else [batch["image"]]
-                paths = batch["image_path"] if isinstance(batch["image_path"], list) else [batch["image_path"]]
-                filenames = batch["filename"] if isinstance(batch["filename"], list) else [batch["filename"]]
-                
-                # Generate outputs for batch
-                outputs = model.generate_batch(images, prompt)
-                assistant_token = "<|assistant|>"
-                
-                # Store results
-                for path, filename, output in zip(paths, filenames, outputs):
-                    if assistant_token in output:
-                        output = output.split(assistant_token, 1)[1].strip()
-                    result = {
-                        "image_path": path,
-                        "filename": filename,
-                        "output": output,
-                        "prompt": prompt
-                    }
-                    with open(save_path, "a", encoding="utf-8") as f:
-                        f.write(json.dumps(result) + '\n')        
-            except Exception as e:
-                print(f"\nError processing batch {i//batch_size}: {e}")
-                # Add error entries for batch
-                for path, filename in zip(paths, filenames):
-                    result = {
-                        "image_path": path,
-                        "filename": filename,
-                        "output": None,
-                        "error": str(e)
-                    }
-                    with open(save_path, "a", encoding="utf-8") as f:
-                        f.write(json.dumps(result) + '\n')
+            # Handle both single item and batch
+            images = batch["image"] if isinstance(batch["image"], list) else [batch["image"]]
+            paths = batch["image_path"] if isinstance(batch["image_path"], list) else [batch["image_path"]]
+            filenames = batch["filename"] if isinstance(batch["filename"], list) else [batch["filename"]]
             
-
+            # Generate outputs for batch
+            outputs = model.generate_batch(images, prompt)
+            assistant_token = "<|assistant|>"
+            
+            # Store results removing context
+            for path, filename, output in zip(paths, filenames, outputs):
+                if assistant_token in output:
+                    output = output.split(assistant_token, 1)[1].strip()
+                result = {
+                    "image_path": path,
+                    "filename": filename,
+                    "output": output,
+                    "prompt": prompt
+                }
+                with open(save_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(result) + '\n')        
+            
 if __name__ == "__main__":
-    args = parse_args()
-    
+    args = parse_args() 
     run_inference(
         model_name=args.model_name,
         data_dir=args.data_dir,
